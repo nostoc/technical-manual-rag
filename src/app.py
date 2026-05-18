@@ -91,8 +91,6 @@ async def build_pipeline():
         top_n=5,
     )
 
-    from llama_index.core.query_engine import RetrieverQueryEngine
-
     query_engine = RetrieverQueryEngine.from_args(
         hybrid_retriever,
         llm=llm,
