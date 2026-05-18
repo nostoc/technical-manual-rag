@@ -1,14 +1,31 @@
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 import os
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi import UploadFile, File
 import re
 
+from fastapi import FastAPI
+from fastapi.concurrency import asynccontextmanager
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi import UploadFile, File
+from pydantic import BaseModel
 
-app = FastAPI()
+from llama_index.postprocessor.cohere_rerank import CohereRerank
+from llama_index.core.query_engine import RetrieverQueryEngine
+from main import parse_documents_with_llamaparse, llm, hybrid_search, chunk_document
+
+COHERE_API_KEY = os.getenv("COHERE_API_KEY")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup logic
+    print("Starting up...")
+
+    yield
+
+    # Shutdown logic
+    print("Shutting down...")
+
+app = FastAPI(lifespan=lifespan)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 IMAGE_DIR = os.path.join(BASE_DIR, "../parsed_images")
@@ -35,13 +52,6 @@ query_engine = None
 async def build_pipeline():
     global query_engine
 
-    from llama_index.core import VectorStoreIndex
-    from llama_index.core.node_parser import SentenceSplitter
-    from llama_index.postprocessor.cohere_rerank import CohereRerank
-    from main import parse_documents_with_llamaparse, llm, hybrid_search, chunk_document
-
-    COHERE_API_KEY = os.getenv("COHERE_API_KEY")
-
     documents = await parse_documents_with_llamaparse(DATA_DIR)
 
     index, nodes = chunk_document(documents)
@@ -50,7 +60,6 @@ async def build_pipeline():
 
     cohere_rerank = CohereRerank(api_key=COHERE_API_KEY, top_n=5)
 
-    from llama_index.core.query_engine import RetrieverQueryEngine
     query_engine = RetrieverQueryEngine.from_args(
         hybrid_retriever,
         llm=llm,
@@ -58,14 +67,6 @@ async def build_pipeline():
     )
 
     print("RAG pipeline ready.")
-
-
-# ---------------------------
-# Startup
-# ---------------------------
-@app.on_event("startup")
-async def startup_event():
-    await build_pipeline()
 
 
 # ---------------------------

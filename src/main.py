@@ -2,13 +2,10 @@ import os
 import sys
 import json
 import asyncio
-import re
 import base64
 import fitz  
 import pdfplumber
 import httpx
-
-from ast import literal_eval
 
 from dotenv import load_dotenv
 
@@ -41,7 +38,7 @@ logging.getLogger("llama_index.core").setLevel(logging.WARNING)
 logging.getLogger("fsspec").setLevel(logging.WARNING)
 set_global_handler("simple")
 
-CACHE_DIR = "./parsed_cache"
+CACHE_DIR = "../parsed_cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 IMAGE_DIR = "../parsed_images"
