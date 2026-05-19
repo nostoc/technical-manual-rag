@@ -1,6 +1,9 @@
 .venv
 .env
-/storage
 *.egg-info/
+/storage
 /node_modules
 /parsed_images
+__pycache__/
+raw/
+processed/

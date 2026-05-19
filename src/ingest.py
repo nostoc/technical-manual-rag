@@ -12,7 +12,7 @@ Handles all document ingestion:
 import os
 import asyncio
 
-import fitz          # PyMuPDF
+import pymupdf
 import httpx
 import pdfplumber
 
@@ -36,16 +36,13 @@ load_dotenv()
 LLAMA_CLOUD_API_KEY = os.getenv("LLAMA_CLOUD_API_KEY")
 llama_cloud_client = AsyncLlamaCloud(api_key=LLAMA_CLOUD_API_KEY)
 
-_CACHE_DIR = PROCESSED_DIR
-
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Image extraction & description
 # ─────────────────────────────────────────────────────────────────────────────
 
 def extract_images_from_pdf(pdf_path: str) -> None:
     """Save every embedded image from *pdf_path* into IMAGE_DIR."""
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     for page_index in range(len(doc)):
         page = doc[page_index]
         for img_index, img in enumerate(page.get_images(full=True)):
@@ -91,7 +88,7 @@ async def build_image_metadata_store() -> dict:
     Returns:
         { "page_1_img_0.png": {"path": ..., "description": ..., "page": ...}, ... }
     """
-    cache_file = _CACHE_DIR / "image_metadata.json"
+    cache_file = PROCESSED_DIR / "image_metadata.json"
     cached = read_json_cache(cache_file)
     if cached is not None:
         print("Loading image metadata from cache...")
@@ -166,7 +163,7 @@ async def build_table_metadata_store(tables_map: dict, filename: str) -> list[di
 
     Returns a list of dicts with keys: summary, markdown, file_name, page, table_index.
     """
-    cache_file = _CACHE_DIR / f"{filename}.tables.json"
+    cache_file = PROCESSED_DIR / f"{filename}.tables.json"
     cached = read_json_cache(cache_file)
     if cached is not None:
         print(f"  Loading cached table metadata for {filename}...")
@@ -236,8 +233,8 @@ async def parse_documents(data_dir=None) -> tuple[list[Document], dict]:
         if not filename.endswith(".pdf"):
             continue
 
-        cache_file = _CACHE_DIR / f"{filename}.json"
-        tables_cache_file = _CACHE_DIR / f"{filename}.tables_map.json"
+        cache_file = PROCESSED_DIR / f"{filename}.json"
+        tables_cache_file = PROCESSED_DIR / f"{filename}.tables_map.json"
 
         cached_pages = read_json_cache(cache_file)
         if cached_pages is not None:

@@ -23,9 +23,6 @@ from src.ingest import (
 from src.retriever import build_index, build_query_engine
 from src.utils import RAW_DIR, IMAGE_DIR, VECTOR_DIR, clean_llm_output
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Lifespan
-# ─────────────────────────────────────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -50,10 +47,6 @@ app.add_middleware(
 _query_engine = None
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Pipeline builder
-# ─────────────────────────────────────────────────────────────────────────────
-
 async def _build_pipeline() -> None:
     global _query_engine
 
@@ -77,10 +70,6 @@ async def _build_pipeline() -> None:
 
     print("RAG pipeline ready.")
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Endpoints
-# ─────────────────────────────────────────────────────────────────────────────
 
 class QueryRequest(BaseModel):
     query: str
