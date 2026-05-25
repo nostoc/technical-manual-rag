@@ -1,219 +1,252 @@
-import os
-import sys
-import json
+"""
+main.py - FastAPI application
+Owns the lifespan, pipeline orchestration, and HTTP endpoints (/upload, /query, /health).
+"""
+
 import asyncio
-from dotenv import load_dotenv
-
-# LlamaIndex
-from llama_index.retrievers.bm25 import BM25Retriever
-from llama_index.core.retrievers import QueryFusionRetriever
-from llama_index.core.query_engine import RetrieverQueryEngine
-from llama_index.postprocessor.cohere_rerank import CohereRerank
-from llama_index.core import (
-    Document,
-    VectorStoreIndex,
-    StorageContext,
-    load_index_from_storage,
-    set_global_handler
-)
-from llama_index.llms.vllm import Vllm
-from llama_index.llms.groq import Groq
-from llama_index.core.node_parser import SentenceSplitter
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-from llama_index.core.settings import Settings
-from llama_index.core.llms import ChatMessage
-from llama_cloud import AsyncLlamaCloud
-
-# logging
+import json
 import logging
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
-logging.getLogger("httpcore").setLevel(logging.WARNING)
-logging.getLogger("httpx").setLevel(logging.WARNING)
-logging.getLogger("llama_index.core").setLevel(logging.WARNING)
-logging.getLogger("fsspec").setLevel(logging.WARNING)
-set_global_handler("simple")
 
-CACHE_DIR = "./parsed_cache"
-os.makedirs(CACHE_DIR, exist_ok=True)
+from fastapi import FastAPI, UploadFile, File
+from contextlib import asynccontextmanager
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
-load_dotenv()
-LLAMA_CLOUD_API_KEY = os.getenv("LLAMA_CLOUD_API_KEY")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-COHERE_API_KEY = os.getenv("COHERE_API_KEY")
+from llama_index.core.node_parser import SentenceSplitter
 
-llama_cloud_client = AsyncLlamaCloud(api_key=LLAMA_CLOUD_API_KEY)
-CHUNK_SIZE = 256
-CHUNK_OVERLAP = 50
-DEV_EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
-PROD_EMBEDDING_MODEL = "Qwen/Qwen3-Embedding-0.6B"
-DEV_LLM_MODEL = "qwen/qwen3-32b"
-PROD_LLM_MODEL = "Qwen3.5-122B-A10B-GGUF"
+from src.ingest import parse_documents, query_table
+from src.retriever import build_index, insert_nodes, get_all_nodes, build_query_engine
+from src.utils import RAW_DIR, IMAGE_DIR, VECTOR_DIR, clean_llm_output, load_retriever_config, setup_logging
+from src.generator import llm
 
-# initialize the LLM and embedding model
-if os.getenv("APP_ENV") == "dev":
-    embed_model = HuggingFaceEmbedding(model_name=DEV_EMBEDDING_MODEL)
-    llm = Groq(
-        model=DEV_LLM_MODEL,
-        api_key=GROQ_API_KEY
-    )
-elif os.getenv("APP_ENV") == "prod":
-    embed_model = HuggingFaceEmbedding(model_name=PROD_EMBEDDING_MODEL)
-    llm = Vllm(
-        model=PROD_LLM_MODEL,
-        tensor_parallel_size=4,
-        max_new_tokens=512,
-        vllm_kwargs={"swap_space": 1, "gpu_memory_utilization": 0.5},
-    )
+setup_logging()
+logger = logging.getLogger(__name__)
 
-Settings.llm = llm
-Settings.embed_model = embed_model
+cfg = load_retriever_config()
 
-# parse PDF
-async def parse_documents_with_llamaparse(data_dir: str):
-    documents = []
+_pipeline_lock = asyncio.Lock()
 
-    for filename in os.listdir(data_dir):
-        if not filename.endswith(".pdf"):
-            continue
 
-        cache_file = os.path.join(CACHE_DIR, f"{filename}.json")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
 
-        # load from cache
-        if os.path.exists(cache_file):
-            print(f"Loading cached parse for {filename}...")
-            with open(cache_file, "r") as f:
-                pages = json.load(f)
 
-            for page in pages:
-                documents.append(
-                    Document(
-                        text=page["text"],
-                        metadata=page["metadata"]
-                    )
-                )
-            continue
+app = FastAPI(lifespan=lifespan)
 
-        # parse normally
-        file_path = os.path.join(data_dir, filename)
+app.mount("/images", StaticFiles(directory=str(IMAGE_DIR)), name="images")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-        print(f"Uploading {filename} to LlamaCloud...")
-        file_obj = await llama_cloud_client.files.create(
-            file=file_path,
-            purpose="parse"
-        )
+# Global state
+_query_engine = None
+_index = None
 
-        print("Parsing file...")
-        result = await llama_cloud_client.parsing.parse(
-            file_id=file_obj.id,
-            tier="cost_effective",
-            version="latest",
-            agentic_options={
-                "custom_prompt": "This is an equipment manual..."
-            },
-            output_options={
-                "markdown": {
-                    "tables": {"output_tables_as_markdown": True},
-                },
-                "images_to_save": ["embedded"],
-            },
-            expand=["markdown"]
-        )
 
-        print("Saving to cache...")
-        pages_to_save = []
-        for page in result.markdown.pages:
-            pages_to_save.append({
-                "text": page.markdown,
-                "metadata": {
-                    "file_name": filename,
-                    "page": page.page_number
-                }
-            })
+async def _build_pipeline() -> None:
+    async with _pipeline_lock:
+        global _query_engine, _index
 
-            documents.append(
-                Document(
-                    text=page.markdown,
-                    metadata={
-                        "file_name": filename,
-                        "page": page.page_number
-                    }
-                )
-            )
+        logger.info("Building RAG pipeline")
 
-        with open(cache_file, "w") as f:
-            json.dump(pages_to_save, f)
+        docstore_file = VECTOR_DIR / "docstore.json"
+        if docstore_file.exists():
+            logger.info("Existing docstore found, loading from Qdrant + docstore")
+            _index, nodes = build_index()
+        else:
+            logger.info("No persisted docstore, running full ingestion pipeline")
+            documents = await parse_documents()
+            logger.info("Ingested %s documents", len(documents))
+            _index, nodes = build_index(documents)
 
-    return documents
+        _query_engine = build_query_engine(_index, nodes)
+        logger.info("RAG pipeline ready")
 
-def chunk_document(documents):
-    if os.path.exists("./storage"):
-        print("Loading index from storage...")
-        storage_context = StorageContext.from_defaults(persist_dir="./storage")
-        index = load_index_from_storage(storage_context)
-        nodes = list(index.docstore.docs.values())
-        print("Done")
-    else:
+
+class QueryRequest(BaseModel):
+    query: str
+
+
+@app.post("/upload")
+async def upload_pdf(file: UploadFile = File(...)):
+    async with _pipeline_lock:
+        global _query_engine, _index
+
+        RAW_DIR.mkdir(parents=True, exist_ok=True)
+        file_path = RAW_DIR / file.filename
+
+        logger.info("Received upload: %s", file.filename)
+        file_bytes = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(file_bytes)
+        logger.info("Saved %s (%s bytes)", file.filename, len(file_bytes))
+
+        new_documents = await parse_documents(files=[file.filename])
+        logger.info("Parsed %s documents from %s", len(new_documents), file.filename)
+
         splitter = SentenceSplitter(
-            chunk_size=CHUNK_SIZE,
-            chunk_overlap=CHUNK_OVERLAP
+            chunk_size=cfg["chunk_size"],
+            chunk_overlap=cfg["chunk_overlap"],
         )
+        new_nodes = splitter.get_nodes_from_documents(new_documents)
+        logger.info("Generated %s nodes", len(new_nodes))
 
-        print("Chunking documents into nodes...")
-        nodes = splitter.get_nodes_from_documents(documents)
+        if _index is not None:
+            insert_nodes(_index, new_nodes)
+        else:
+            docstore_file = VECTOR_DIR / "docstore.json"
+            if docstore_file.exists():
+                logger.info("Loading persisted index before incremental insert")
+                _index, _ = build_index()
+                insert_nodes(_index, new_nodes)
+            else:
+                logger.warning("No docstore found, building fresh index")
+                _index, _ = build_index(new_documents)
 
-        print("Creating new index...")
-        index = VectorStoreIndex.from_documents(nodes)
-        index.storage_context.persist("./storage")
-        print("Done")
-    
-    return index, nodes
+        all_nodes = get_all_nodes(_index)
+        _query_engine = build_query_engine(_index, all_nodes)
+        logger.info("Upload complete for %s; query engine rebuilt with %s nodes", file.filename, len(all_nodes))
 
-def hybrid_search(index, nodes):
-    # Build retrievers
-    dense_retriever = index.as_retriever(similarity_top_k=10)
+    return {"message": "uploaded and indexed", "file": file.filename}
 
-    bm25_retriever = BM25Retriever.from_defaults(
-        nodes=nodes,
-        similarity_top_k=10,
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Table resolution helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+_TABLE_RELEVANCE_PROMPT = """\
+The user asked: {query}
+
+The following tables were retrieved from the manual. For each table, decide
+whether it likely contains information needed to answer the query.
+
+Tables:
+{table_list}
+
+Reply with a JSON object only — no prose, no markdown fences:
+{{
+  "relevant_tables": [
+    {{"file_name": "...", "page": <int>, "table_index": <int>}},
+    ...
+  ]
+}}
+If no table is relevant, return {{"relevant_tables": []}}."""
+
+
+async def _resolve_tables(
+    query: str,
+    table_nodes: list,
+) -> list[dict]:
+    """
+    Ask the LLM which retrieved table_summary nodes are relevant to *query*.
+    Returns a list of full structured tables for the relevant ones.
+    """
+    if not table_nodes:
+        return []
+
+    table_list = "\n\n".join(
+        f"[{i}] file={n.metadata['file_name']}  page={n.metadata['page']}  "
+        f"table_index={n.metadata['table_index']}\n{n.get_content()}"
+        for i, n in enumerate(table_nodes)
     )
 
-    # Hybrid retriever
-    hybrid_retriever = QueryFusionRetriever(
-        [dense_retriever, bm25_retriever],
-        similarity_top_k=10,
-        num_queries=1,
-        mode="reciprocal_rerank",
+    prompt = _TABLE_RELEVANCE_PROMPT.format(query=query, table_list=table_list)
+
+    response = await llm.acomplete(prompt)
+    raw = response.text.strip()
+
+    try:
+        parsed = json.loads(raw)
+        relevant = parsed.get("relevant_tables", [])
+    except json.JSONDecodeError:
+        logger.warning("LLM returned non-JSON for table relevance: %s", raw[:200])
+        relevant = []
+
+    results = []
+    for entry in relevant:
+        try:
+            table_data = query_table(
+                file_name=entry["file_name"],
+                page=int(entry["page"]),
+                table_index=int(entry["table_index"]),
+            )
+            if table_data["rows"]:
+                results.append({
+                    "file_name": entry["file_name"],
+                    "page": entry["page"],
+                    "table_index": entry["table_index"],
+                    **table_data,
+                })
+        except (KeyError, ValueError) as e:
+            logger.warning("Could not resolve table entry %s: %s", entry, e)
+
+    logger.info(
+        "Table resolution: %s retrieved, %s judged relevant, %s resolved",
+        len(table_nodes), len(relevant), len(results),
+    )
+    return results
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Query endpoint
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/query")
+async def query_rag(req: QueryRequest):
+    if _query_engine is None:
+        logger.warning("Query attempted before pipeline was ready")
+        return JSONResponse(status_code=503, content={"error": "Pipeline not ready"})
+
+    logger.info("Processing query (length=%s)", len(req.query))
+    response = await _query_engine.aquery(req.query)
+
+    text_nodes = []
+    table_nodes = []
+    images: list[str] = []
+    sources: list[dict] = []
+
+    for node in response.source_nodes:
+        node_type = node.metadata.get("type", "text")
+        score = round(node.score, 3) if node.score is not None else None
+
+        if node_type == "table_summary":
+            table_nodes.append(node)
+        else:
+            text_nodes.append(node)
+            node_images = node.metadata.get("images", [])
+            images.extend(node_images)
+
+        sources.append({
+            "type": node_type,
+            "file_name": node.metadata.get("file_name", ""),
+            "page": node.metadata.get("page", ""),
+            "snippet": node.get_content()[:150],
+            "score": score,
+        })
+
+    # Resolve tables: ask LLM which summaries are relevant, then fetch rows
+    resolved_tables = await _resolve_tables(req.query, table_nodes)
+
+    logger.info(
+        "Query complete: %s text nodes, %s table nodes, %s resolved tables, %s images",
+        len(text_nodes), len(table_nodes), len(resolved_tables), len(set(images)),
     )
 
-    return hybrid_retriever
+    return JSONResponse(content={
+        "answer": clean_llm_output(str(response)),
+        "images": list(dict.fromkeys(images)),  # dedupe, preserve order
+        "tables": resolved_tables,              # full structured rows for frontend rendering
+        "sources": sources,
+    })
 
 
-async def main():
-    documents = await parse_documents_with_llamaparse("../data")
-
-    index, nodes = chunk_document(documents)
-
-    hybrid_retriever = hybrid_search(index, nodes)
-
-    # Cohere reranker — returns top 5 after reranking the 20 candidates
-    cohere_rerank = CohereRerank(
-        api_key=COHERE_API_KEY,
-        top_n=5,
-    )
-
-    # Query engine with hybrid retrieval + reranking
-    print("Querying the index...")
-    query_engine = RetrieverQueryEngine.from_args(
-        hybrid_retriever,
-        llm=llm,
-        node_postprocessors=[cohere_rerank],
-    )
-
-    print("Generating response...")
-    llm_response = await query_engine.aquery(
-        "What is the name of this device?"
-    )
-    print(llm_response.response)
-
-if __name__ == "__main__":
-    asyncio.run(main())
+@app.get("/health")
+def health():
+    return {"status": "ok"}
