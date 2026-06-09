@@ -12,11 +12,11 @@ from pathlib import Path
 
 from llama_index.core import Document
 
-from src.utils import PROCESSED_DIR, RAW_DIR, read_json_cache, write_json_cache
-from ingest.db import init_db
-from ingest.images import extract_images_from_pdf
-from ingest.parser import parse_pdf
-from ingest.tables import build_table_documents
+from app.utils import PROCESSED_DIR, RAW_DIR, read_json_cache, write_json_cache
+from app.ingest.db import init_db
+from app.ingest.images import extract_images_from_pdf
+from app.ingest.parser import parse_pdf
+from app.ingest.tables import build_table_documents
 
 logger = logging.getLogger(__name__)
 

@@ -18,7 +18,7 @@ from pathlib import Path
 
 from pdf_oxide import PdfDocument
 
-from ingest.db import insert_table_rows
+from app.ingest.db import insert_table_rows
 
 logger = logging.getLogger(__name__)
 

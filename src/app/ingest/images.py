@@ -13,7 +13,7 @@ from pathlib import Path
 
 from pdf_oxide import PdfDocument
 
-from src.utils import IMAGE_DIR
+from app.utils import IMAGE_DIR
 
 logger = logging.getLogger(__name__)
 

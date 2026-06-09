@@ -11,8 +11,8 @@ import logging
 
 from llama_index.core import Document
 
-from src.utils import PROCESSED_DIR, read_json_cache, write_json_cache, rows_to_markdown
-from src.generator import summarize_table
+from app.utils import PROCESSED_DIR, read_json_cache, write_json_cache, rows_to_markdown
+from app.generator import summarize_table
 
 logger = logging.getLogger(__name__)
 

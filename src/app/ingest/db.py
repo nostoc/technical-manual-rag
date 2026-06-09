@@ -7,7 +7,7 @@ import json
 import logging
 import sqlite3
 
-from src.utils import DB_PATH
+from app.utils import DB_PATH
 
 logger = logging.getLogger(__name__)
 

@@ -16,11 +16,11 @@ from pydantic import BaseModel
 
 from llama_index.core.node_parser import SentenceSplitter
 
-from src.ingest.pipeline import parse_documents
-from src.ingest.db import query_table
-from src.retriever import build_index, insert_nodes, get_all_nodes, build_query_engine
-from src.utils import RAW_DIR, IMAGE_DIR, VECTOR_DIR, clean_llm_output, load_retriever_config, setup_logging
-from src.generator import llm
+from app.ingest.pipeline import parse_documents
+from app.ingest.db import query_table
+from app.retriever import build_index, insert_nodes, get_all_nodes, build_query_engine
+from app.utils import RAW_DIR, IMAGE_DIR, VECTOR_DIR, clean_llm_output, load_retriever_config, setup_logging
+from app.generator import llm
 
 setup_logging()
 logger = logging.getLogger(__name__)

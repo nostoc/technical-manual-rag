@@ -14,7 +14,7 @@ from llama_index.llms.groq import Groq
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.core.settings import Settings
 
-from src.utils import load_llm_config
+from app.utils import load_llm_config
 
 load_dotenv()
 

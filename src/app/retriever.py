@@ -22,8 +22,8 @@ from llama_index.vector_stores.qdrant import QdrantVectorStore
 from llama_index.core.storage.docstore import SimpleDocumentStore
 import qdrant_client
 
-from src.utils import VECTOR_DIR, load_retriever_config
-from src.generator import llm
+from app.utils import VECTOR_DIR, load_retriever_config
+from app.generator import llm
 
 load_dotenv()
 
