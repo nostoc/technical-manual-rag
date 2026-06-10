@@ -11,6 +11,7 @@ Handles all retrieval concerns:
 import os
 import logging
 from dotenv import load_dotenv
+from qdrant_client import AsyncQdrantClient, QdrantClient
 
 from llama_index.retrievers.bm25 import BM25Retriever
 from llama_index.core.retrievers import QueryFusionRetriever
@@ -41,10 +42,16 @@ _cfg = load_retriever_config()
 # Qdrant client (module-level singleton)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _make_qdrant_client() -> qdrant_client.QdrantClient:
+def _make_qdrant_clients() -> tuple[QdrantClient, AsyncQdrantClient]:
     if QDRANT_API_KEY:
-        return qdrant_client.QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
-    return qdrant_client.QdrantClient(url=QDRANT_URL)
+        return (
+            qdrant_client.QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY),
+            qdrant_client.AsyncQdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY),
+        )
+    return (
+        qdrant_client.QdrantClient(url=QDRANT_URL),
+        qdrant_client.AsyncQdrantClient(url=QDRANT_URL),
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -66,9 +73,10 @@ def build_index(documents=None):
     """
     docstore_path = str(VECTOR_DIR)
 
-    qclient = _make_qdrant_client()
+    qclient, aclient = _make_qdrant_clients()
     vector_store = QdrantVectorStore(
         client=qclient,
+        aclient=aclient,
         collection_name=QDRANT_COLLECTION,
     )
 
