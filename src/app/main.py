@@ -228,7 +228,7 @@ async def query_rag(req: QueryRequest):
             "type": node_type,
             "file_name": node.metadata.get("file_name", ""),
             "page": node.metadata.get("page", ""),
-            "snippet": node.get_content()[:150],
+            "snippet": node.get_content(),
             "score": score,
         })
 

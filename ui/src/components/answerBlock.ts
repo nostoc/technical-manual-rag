@@ -141,13 +141,14 @@ export function createAnswerBlock(msg: Message): HTMLElement {
 
   const hasImages = (msg.images?.length ?? 0) > 0;
   const hasTables = (msg.tables?.length ?? 0) > 0;
-  const hasSources = (msg.sources?.length ?? 0) > 0;
+  const filteredSources = (msg.sources ?? []).filter((s) => s.score != null && s.score >= 0.2);
+  const hasSources = filteredSources.length > 0;
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: "answer", label: "Answer" },
     ...(hasTables ? [{ key: "tables" as TabKey, label: `Tables (${msg.tables!.length})` }] : []),
     ...(hasImages ? [{ key: "images" as TabKey, label: `Images (${msg.images!.length})` }] : []),
-    ...(hasSources ? [{ key: "sources" as TabKey, label: `Sources (${msg.sources!.length})` }] : []),
+    ...(hasSources ? [{ key: "sources" as TabKey, label: `Sources (${filteredSources.length})` }] : []),
   ];
 
   // Tab bar
@@ -164,7 +165,19 @@ export function createAnswerBlock(msg: Message): HTMLElement {
   answerPanel.setAttribute("role", "tabpanel");
   const answerText = document.createElement("p");
   answerText.className = "answer-text";
-  answerText.textContent = msg.answer ?? "";
+
+  const formatAnswerText = (text: string) => {
+    const t = text ?? "";
+    const esc = t
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+    return esc.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  };
+
+  answerText.innerHTML = formatAnswerText(msg.answer ?? "");
   answerPanel.appendChild(answerText);
   panels.set("answer", answerPanel);
 
@@ -205,7 +218,7 @@ export function createAnswerBlock(msg: Message): HTMLElement {
     const sp = document.createElement("div");
     sp.className = "tab-panel";
     sp.setAttribute("role", "tabpanel");
-    msg.sources!.forEach((s) => sp.appendChild(createSourceCard(s)));
+    filteredSources.forEach((s) => sp.appendChild(createSourceCard(s)));
     panels.set("sources", sp);
   }
 
