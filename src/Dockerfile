@@ -8,8 +8,10 @@ COPY pyproject.toml uv.lock* ./
 
 RUN uv sync --frozen --no-install-project
 
+ENV PATH="/app/.venv/bin:$PATH"
+
 COPY . .
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["fastapi", "run", "app/main.py", "--host", "0.0.0.0", "--port", "8000"]
