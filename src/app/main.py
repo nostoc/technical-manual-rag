@@ -222,7 +222,7 @@ async def query_rag(req: QueryRequest):
         else:
             text_nodes.append(node)
             node_images = node.metadata.get("images", [])
-            images.extend(node_images)
+            images.extend(f"/images/{img}" for img in node_images if img)
 
         sources.append({
             "type": node_type,

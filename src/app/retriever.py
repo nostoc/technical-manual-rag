@@ -155,15 +155,11 @@ def insert_nodes(index: VectorStoreIndex, new_nodes: list, persist: bool = True)
 
     logger.info("Inserting %s new nodes (%s provided)", len(deduped), len(new_nodes))
 
-    for node in deduped:
-        index.insert_nodes([node])
-        
-    # Add to Qdrant
-    for node in new_nodes:
-        index.insert_nodes([node])
+    # insert_nodes handles both Qdrant and the in-memory vector store
+    index.insert_nodes(deduped)
 
     # Add to docstore so subsequent BM25 builds see the new nodes
-    index.storage_context.docstore.add_documents(new_nodes)
+    index.storage_context.docstore.add_documents(deduped)
 
     if persist:
         index.storage_context.persist(str(VECTOR_DIR))
