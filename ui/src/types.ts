@@ -3,7 +3,8 @@ export interface TableData {
   page: number;
   table_index: number;
   headers: string[];
-  rows: string[][];
+  rows: Record<string, string>[];
+  col_names: string[]
 }
 
 export interface SourceNode {

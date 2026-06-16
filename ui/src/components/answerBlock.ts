@@ -1,3 +1,4 @@
+// components/answerBlock.ts
 import type { Message, SourceNode, TableData } from "../types";
 import { API_BASE } from "../api";
 
@@ -104,9 +105,12 @@ function createDataTable(table: TableData): HTMLElement {
   const tbl = document.createElement("table");
   tbl.className = "data-table";
 
+  // Backend returns col_names (array of strings) and rows (array of dicts)
+  const colNames: string[] = table.col_names ?? [];
+
   const thead = document.createElement("thead");
   const headerRow = document.createElement("tr");
-  table.headers.forEach((h) => {
+  colNames.forEach((h) => {
     const th = document.createElement("th");
     th.textContent = h;
     headerRow.appendChild(th);
@@ -115,11 +119,12 @@ function createDataTable(table: TableData): HTMLElement {
   tbl.appendChild(thead);
 
   const tbody = document.createElement("tbody");
-  table.rows.forEach((row) => {
+  // Each row is a dict keyed by column name; preserve column order via colNames
+  (table.rows as Record<string, string>[]).forEach((rowDict) => {
     const tr = document.createElement("tr");
-    row.forEach((cell) => {
+    colNames.forEach((col) => {
       const td = document.createElement("td");
-      td.textContent = cell;
+      td.textContent = rowDict[col] ?? "";
       tr.appendChild(td);
     });
     tbody.appendChild(tr);
@@ -190,7 +195,7 @@ export function createAnswerBlock(msg: Message): HTMLElement {
     panels.set("tables", tp);
   }
 
-  // Images panel
+  // Images panel — src is already a rooted path (/images/<filename>) from the backend
   if (hasImages) {
     const ip = document.createElement("div");
     ip.className = "tab-panel";
@@ -198,12 +203,13 @@ export function createAnswerBlock(msg: Message): HTMLElement {
     const grid = document.createElement("div");
     grid.className = "image-grid";
     msg.images!.forEach((src, i) => {
+      const url = `${API_BASE}${src}`;
       const a = document.createElement("a");
-      a.href = `${API_BASE}${src}`;
+      a.href = url;
       a.target = "_blank";
       a.rel = "noreferrer";
       const img = document.createElement("img");
-      img.src = `${API_BASE}${src}`;
+      img.src = url;
       img.alt = `Figure ${i + 1}`;
       img.className = "result-image";
       a.appendChild(img);
