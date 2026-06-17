@@ -44,12 +44,13 @@ COHERE_API_KEY=
 
 4. Run app.py
 ```
-python -m uvicorn src.main:app --reload
+cd ./src
+uvicorn app.main:app --reload
 ```
 
 6. Run frontend
 ```
-cd ./frontend
+cd ./ui
 npm i
 npm run dev
 ```
