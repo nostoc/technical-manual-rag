@@ -33,23 +33,25 @@ uv venv --python 3.12.12
 uv sync
 ```
 
-3. Create .env file and add API Keys
-```
-APP_ENV=dev
-GOOGLE_API_KEY=
-LLAMA_CLOUD_API_KEY=
-GROQ_API_KEY=
-COHERE_API_KEY=
+3. Cope .env.exmaple to .env file and add API Keys
 ```
 
-4. Run app.py
 ```
-python -m uvicorn src.main:app --reload
+
+4. Run local Qdrant server
+```
+docker compose up qdrant -d
+```
+
+5. Run app.py
+```
+cd ./src
+python -m uvicorn app.main:app --reload
 ```
 
 6. Run frontend
 ```
-cd ./frontend
+cd ./ui
 npm i
 npm run dev
 ```
