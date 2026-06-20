@@ -138,7 +138,7 @@ function createDataTable(table: TableData): HTMLElement {
 
 // ── Answer block (tabs) ──────────────────────────────────────────────────────
 
-type TabKey = "answer" | "tables" | "images" | "sources";
+type TabKey = "answer" | "tables" | "sources";
 
 export function createAnswerBlock(msg: Message): HTMLElement {
   const block = document.createElement("div");
@@ -152,7 +152,6 @@ export function createAnswerBlock(msg: Message): HTMLElement {
   const tabs: { key: TabKey; label: string }[] = [
     { key: "answer", label: "Answer" },
     ...(hasTables ? [{ key: "tables" as TabKey, label: `Tables (${msg.tables!.length})` }] : []),
-    ...(hasImages ? [{ key: "images" as TabKey, label: `Images (${msg.images!.length})` }] : []),
     ...(hasSources ? [{ key: "sources" as TabKey, label: `Sources (${filteredSources.length})` }] : []),
   ];
 
@@ -184,6 +183,51 @@ export function createAnswerBlock(msg: Message): HTMLElement {
 
   answerText.innerHTML = formatAnswerText(msg.answer ?? "");
   answerPanel.appendChild(answerText);
+
+  // Append images to the answer panel directly below the text
+  if (hasImages) {
+    const section = document.createElement("div");
+    section.className = "answer-images-section";
+
+    const title = document.createElement("div");
+    title.className = "answer-images-title";
+    title.innerHTML = `<i class="ti ti-photo" aria-hidden="true"></i> <span>Related Figures (${msg.images!.length})</span>`;
+    section.appendChild(title);
+
+    const grid = document.createElement("div");
+    grid.className = "image-grid";
+
+    msg.images!.forEach((src, i) => {
+      const url = `${API_BASE}${src}`;
+      
+      const wrapper = document.createElement("div");
+      wrapper.className = "image-card-wrapper";
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noreferrer";
+      a.setAttribute("aria-label", `View Figure ${i + 1} in full size`);
+
+      const img = document.createElement("img");
+      img.src = url;
+      img.alt = `Figure ${i + 1}`;
+      img.className = "result-image";
+      
+      const caption = document.createElement("div");
+      caption.className = "image-caption";
+      caption.textContent = `Figure ${i + 1}`;
+
+      a.appendChild(img);
+      wrapper.appendChild(a);
+      wrapper.appendChild(caption);
+      grid.appendChild(wrapper);
+    });
+
+    section.appendChild(grid);
+    answerPanel.appendChild(section);
+  }
+
   panels.set("answer", answerPanel);
 
   // Tables panel
@@ -193,30 +237,6 @@ export function createAnswerBlock(msg: Message): HTMLElement {
     tp.setAttribute("role", "tabpanel");
     msg.tables!.forEach((t) => tp.appendChild(createDataTable(t)));
     panels.set("tables", tp);
-  }
-
-  // Images panel — src is already a rooted path (/images/<filename>) from the backend
-  if (hasImages) {
-    const ip = document.createElement("div");
-    ip.className = "tab-panel";
-    ip.setAttribute("role", "tabpanel");
-    const grid = document.createElement("div");
-    grid.className = "image-grid";
-    msg.images!.forEach((src, i) => {
-      const url = `${API_BASE}${src}`;
-      const a = document.createElement("a");
-      a.href = url;
-      a.target = "_blank";
-      a.rel = "noreferrer";
-      const img = document.createElement("img");
-      img.src = url;
-      img.alt = `Figure ${i + 1}`;
-      img.className = "result-image";
-      a.appendChild(img);
-      grid.appendChild(a);
-    });
-    ip.appendChild(grid);
-    panels.set("images", ip);
   }
 
   // Sources panel
