@@ -138,7 +138,7 @@ function createDataTable(table: TableData): HTMLElement {
 
 // ── Answer block (tabs) ──────────────────────────────────────────────────────
 
-type TabKey = "answer" | "tables" | "sources";
+type TabKey = "answer" | "sources";
 
 export function createAnswerBlock(msg: Message): HTMLElement {
   const block = document.createElement("div");
@@ -151,7 +151,6 @@ export function createAnswerBlock(msg: Message): HTMLElement {
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: "answer", label: "Answer" },
-    ...(hasTables ? [{ key: "tables" as TabKey, label: `Tables (${msg.tables!.length})` }] : []),
     ...(hasSources ? [{ key: "sources" as TabKey, label: `Sources (${filteredSources.length})` }] : []),
   ];
 
@@ -228,16 +227,24 @@ export function createAnswerBlock(msg: Message): HTMLElement {
     answerPanel.appendChild(section);
   }
 
-  panels.set("answer", answerPanel);
-
-  // Tables panel
+  // Append tables to the answer panel directly below the images
   if (hasTables) {
-    const tp = document.createElement("div");
-    tp.className = "tab-panel";
-    tp.setAttribute("role", "tabpanel");
-    msg.tables!.forEach((t) => tp.appendChild(createDataTable(t)));
-    panels.set("tables", tp);
+    const section = document.createElement("div");
+    section.className = "answer-tables-section";
+
+    const title = document.createElement("div");
+    title.className = "answer-tables-title";
+    title.innerHTML = `<i class="ti ti-table" aria-hidden="true"></i> <span>Related Tables (${msg.tables!.length})</span>`;
+    section.appendChild(title);
+
+    msg.tables!.forEach((t) => {
+      section.appendChild(createDataTable(t));
+    });
+
+    answerPanel.appendChild(section);
   }
+
+  panels.set("answer", answerPanel);
 
   // Sources panel
   if (hasSources) {

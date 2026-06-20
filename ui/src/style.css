@@ -424,41 +424,84 @@ body {
 }
 
 /* ── Data tables ─────────────────────────────────────────────────────────── */
-.data-table-wrap { margin-bottom: 16px; }
-.data-table__meta {
+.answer-tables-section {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px dashed #e2e8f0;
+}
+.answer-tables-title {
   font-family: ui-monospace, monospace;
   font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: var(--amber);
-  margin-bottom: 6px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.answer-tables-title i {
+  font-size: 14px;
+}
+.data-table-wrap {
+  margin-bottom: 20px;
+  background: #f8fafc;
+  border-radius: var(--radius-md);
+  border: 1px solid #e2e8f0;
+  padding: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+.data-table-wrap:last-child {
+  margin-bottom: 0;
+}
+.data-table__meta {
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  color: #64748b;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 .data-table__scroll {
   overflow-x: auto;
   border-radius: var(--radius-sm);
-  border: 0.5px solid #e0e0db;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
 }
 .data-table {
   width: 100%;
   border-collapse: collapse;
-  font-family: ui-monospace, monospace;
+  font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 12px;
   table-layout: auto;
 }
-.data-table thead { background: #f5f5f3; }
+.data-table thead {
+  background: #f1f5f9;
+}
 .data-table th {
-  padding: 6px 10px;
+  padding: 8px 12px;
   text-align: left;
-  font-weight: 500;
-  color: #222;
-  border-bottom: 0.5px solid #d4d4cc;
+  font-weight: 600;
+  color: #334155;
+  border-bottom: 1px solid #e2e8f0;
   white-space: nowrap;
 }
 .data-table td {
-  padding: 5px 10px;
-  color: #222;
+  padding: 8px 12px;
+  color: #475569;
   vertical-align: top;
-  border-bottom: 0.5px solid #e8e8e4;
+  border-bottom: 1px solid #f1f5f9;
+  line-height: 1.5;
 }
-.data-table tbody tr:last-child td { border-bottom: none; }
+.data-table tbody tr {
+  transition: background-color 0.15s;
+}
+.data-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
 
 /* ── Image grid ──────────────────────────────────────────────────────────── */
 .answer-images-section {

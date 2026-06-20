@@ -6,6 +6,7 @@ Owns the lifespan, pipeline orchestration, and HTTP endpoints (/upload, /query, 
 import asyncio
 import json
 import logging
+import re
 
 from fastapi import FastAPI, UploadFile, File
 from contextlib import asynccontextmanager
@@ -163,8 +164,21 @@ async def _resolve_tables(
     response = await llm.acomplete(prompt)
     raw = response.text.strip()
 
+    # Clean the response from reasoning thoughts and markdown formatting
+    cleaned_raw = raw
+    if cleaned_raw.startswith("```"):
+        cleaned_raw = re.sub(r"^```[a-zA-Z]*\n", "", cleaned_raw)
+        cleaned_raw = re.sub(r"\n```$", "", cleaned_raw)
+    
+    cleaned_raw = re.sub(r"<think>.*?</think>", "", cleaned_raw, flags=re.DOTALL)
+    
+    start = cleaned_raw.find("{")
+    end = cleaned_raw.rfind("}")
+    if start != -1 and end != -1:
+        cleaned_raw = cleaned_raw[start:end+1]
+
     try:
-        parsed = json.loads(raw)
+        parsed = json.loads(cleaned_raw)
         relevant = parsed.get("relevant_tables", [])
     except json.JSONDecodeError:
         logger.warning("LLM returned non-JSON for table relevance: %s", raw[:200])
