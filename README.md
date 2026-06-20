@@ -21,19 +21,19 @@ root/
 ```
 
 ## Getting Started
+
 1. Install uv
 ```
 pip install uv
-uv venv --python 3.12.12
-.venv/Scripts/activate
 ```
 
 2. Install dependencies
 ```
+cd ./src
 uv sync
 ```
 
-3. Cope .env.exmaple to .env file and add API Keys
+3. Copy .env.example to .env file and add API Keys
 ```
 
 ```
@@ -46,7 +46,7 @@ docker compose up qdrant -d
 5. Run app.py
 ```
 cd ./src
-python -m uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload
 ```
 
 6. Run frontend
