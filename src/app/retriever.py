@@ -31,8 +31,12 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 COHERE_API_KEY = os.getenv("COHERE_API_KEY")
-QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
+QDRANT_URL = os.getenv("QDRANT_URL", "http://127.0.0.1:6333")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")          # None for local
+if QDRANT_API_KEY:
+    QDRANT_API_KEY = QDRANT_API_KEY.strip()
+    if not QDRANT_API_KEY or QDRANT_API_KEY.startswith("#"):
+        QDRANT_API_KEY = None
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "rag_documents")
 
 _cfg = load_retriever_config()
